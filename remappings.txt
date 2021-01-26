@@ -2,3 +2,5 @@
 @openzeppelin/=openzeppelin-contracts/
 @uniswap/v2-core=uniswap-v2-core/
 @uniswap/lib/=uniswap-lib/
+ds-test/=lib/ds-test/src/
+ds-test=lib/ds-test/src/index.sol
