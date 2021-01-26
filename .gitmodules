@@ -1,0 +1,15 @@
+[submodule "radicle-contracts"]
+	path = radicle-contracts
+	url = https://github.com/radicle-dev/radicle-contracts
+[submodule "ens"]
+	path = ens
+	url = https://github.com/ensdomains/ens
+[submodule "openzeppelin-contracts"]
+	path = openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "uniswap-lib"]
+	path = uniswap-lib
+	url = https://github.com/Uniswap/uniswap-lib/
+[submodule "uniswap-v2-core"]
+	path = uniswap-v2-core
+	url = https://github.com/Uniswap/uniswap-v2-core
