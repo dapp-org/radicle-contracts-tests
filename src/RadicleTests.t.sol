@@ -60,7 +60,6 @@ contract VestingTokenTests is DSTest {
         vest = new VestingToken{salt: salt}(
             token, owner, beneficiary, amount, vestingStartTime, vestingPeriod, cliffPeriod
         );
-        require(address(vest) == vestAddress);
     }
 
     // Demonstrates a bug where withdrawableBalance() always reverts after
