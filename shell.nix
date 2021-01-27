@@ -3,8 +3,14 @@ let
   pkgs = import sources.dapptools {};
 in
   pkgs.mkShell {
-    buildInputs = with pkgs; [ dapp seth hevm niv ethsign ];
-    DAPP_SOLC = if pkgs.stdenv.isDarwin
-                then (toString ./solc-macos-0.7.5)
-                else (toString ./solc-linux-0.7.5);
+    buildInputs = with pkgs; [
+      dapp
+      seth
+      hevm
+      niv
+      ethsign
+      solc-static-versions.solc_0_7_5
+    ];
+    DAPP_SOLC="solc-0.7.5";
+    DAPP_REMAPPINGS=pkgs.lib.strings.fileContents ./remappings.txt;
   }

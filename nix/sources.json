@@ -5,10 +5,10 @@
         "homepage": "https://dapp.tools",
         "owner": "dapphub",
         "repo": "dapptools",
-        "rev": "6fa91f1bca57037b40848c9b104f4a6675d4c69c",
-        "sha256": "0j4aas5ah5vs16yx71wfiii2hg3gvfrycmzxc4y0p9r9x9fj6v2x",
+        "rev": "dc992eb2e9d05bee150156add790bddb160fc80c",
+        "sha256": "1r9zxpq1wh68bxjpd34i0hzk7pvi0v7rwyasxvzg5n28s50zc5fc",
         "type": "tarball",
-        "url": "https://github.com/dapphub/dapptools/archive/6fa91f1bca57037b40848c9b104f4a6675d4c69c.tar.gz",
+        "url": "https://github.com/dapphub/dapptools/archive/dc992eb2e9d05bee150156add790bddb160fc80c.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
