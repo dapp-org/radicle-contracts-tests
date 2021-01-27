@@ -17,38 +17,76 @@ interface Hevm {
     function store(address,bytes32,bytes32) external;
 }
 
+contract VestingUser is DSTest {
+    function withdrawVested(VestingToken vest) public {
+        vest.withdrawVested();
+    }
+}
+
 contract VestingTokenTests is DSTest {
     RadicleToken rad;
+    VestingToken vest;
+    VestingUser user;
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
+        hevm.warp(12345678);
+
         rad = new RadicleToken(address(this));
+        user = new VestingUser();
+
+        // VestingToken calls transferFrom in the constructor, so we use
+        // create2 to precompute the address of the token and approve the
+        // VestingToken to move rad on behalf of the testing contract
+        bytes32 salt = bytes32("0xacab");
+        address token = address(rad);
+        address owner = address(this);
+        address beneficiary = address(user);
+        uint amount = 1000000 ether;
+        uint vestingStartTime = block.timestamp - 1;
+        uint vestingPeriod = 2 weeks;
+        uint cliffPeriod = 1 days;
+
+        address vestAddress = Utils.create2Address(
+            salt,
+            address(this),
+            type(VestingToken).creationCode,
+            abi.encode(
+                token, owner, beneficiary, amount, vestingStartTime, vestingPeriod, cliffPeriod
+            )
+        );
+
+        rad.approve(vestAddress, uint(-1));
+        vest = new VestingToken{salt: salt}(
+            token, owner, beneficiary, amount, vestingStartTime, vestingPeriod, cliffPeriod
+        );
+        require(address(vest) == vestAddress);
     }
 
     // Demonstrates a bug where withdrawableBalance() always reverts after
     // vesting has been interrupted.
     function testFail_vesting_failure() public {
-        hevm.warp(12345678);
-        // Note that since the vestingtoken contract performs a transferFrom
-        // in its constructor, we have to precalculate its address and approve
-        // it before we construct it.
-        rad.approve(0xCaF5d8813B29465413587C30004231645FE1f680, uint(-1));
-        VestingToken vest = new VestingToken(
-            address(rad),
-            address(this),
-            address(0xacab),
-            1000000 ether,
-            block.timestamp - 1,
-            2 weeks,
-            1 days
-        );
-
         hevm.warp(block.timestamp + 2 days);
         vest.terminateVesting();
         hevm.warp(block.timestamp + 1 days);
 
         // withdrawableBalance reverts if vesting was interrupted
         vest.withdrawableBalance();
+    }
+
+    // `withdrawableBalance()` should always return the actual amount that will
+    // be withdrawan when calling `withdrawVested()`
+    // TODO: allow `hevm.warp` for symbolic values
+    function test_withdrawal_amount(uint24 jump) public {
+        hevm.warp(block.timestamp + jump);
+
+        uint amt = vest.withdrawableBalance();
+        uint prebal = rad.balanceOf(address(user));
+
+        user.withdrawVested(vest);
+        uint postbal = rad.balanceOf(address(user));
+
+        assertEq(postbal - prebal, amt);
     }
 }
 
@@ -83,5 +121,18 @@ contract GovernanceTest is DSTest {
         rad = new RadicleToken(address(this));
         timelock = new Timelock(address(this), 2 days);
         governor = new Governor(address(timelock), address(rad), address(this));
+    }
+}
+
+library Utils {
+    function create2Address(
+        bytes32 salt, address creator, bytes memory creationCode, bytes memory args
+    ) internal returns (address) {
+        return address(uint(keccak256(abi.encodePacked(
+            bytes1(0xff),
+            creator,
+            salt,
+            keccak256(abi.encodePacked(creationCode, args))
+        ))));
     }
 }
