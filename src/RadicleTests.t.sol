@@ -17,30 +17,12 @@ interface Hevm {
     function store(address,bytes32,bytes32) external;
 }
 
-
-contract RadicleContractsTests is DSTest {
-    ENS ens;
-    Registrar registrar;
-    Governor governor;
-    RadicleToken token;
-    Timelock timelock;
+contract VestingTokenTests is DSTest {
+    RadicleToken rad;
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
-        ens = ENS(new ENSRegistry());
-        token = new RadicleToken(address(this));
-        registrar = new Registrar(
-                                  ens,
-                                  bytes32(0), // TODO
-                                  0,          // TODO
-                                  address(0), // TODO
-                                  address(0), // TODO
-                                  ERC20Burnable(address(token)),
-                                  address(this)
-
-        );
-        timelock = new Timelock(address(this), 2 days);
-        governor = new Governor(address(timelock), address(token), address(this));
+        rad = new RadicleToken(address(this));
     }
 
     // Demonstrates a bug where withdrawableBalance() always reverts after
@@ -50,20 +32,56 @@ contract RadicleContractsTests is DSTest {
         // Note that since the vestingtoken contract performs a transferFrom
         // in its constructor, we have to precalculate its address and approve
         // it before we construct it.
-        token.approve(0xCaF5d8813B29465413587C30004231645FE1f680, uint(-1));
-        VestingToken vest = new VestingToken(address(token),
-                                             address(this),
-                                             address(0xacab),
-                                             1000000 ether,
-                                             block.timestamp - 1,
-                                             2 weeks,
-                                             1 days);
+        rad.approve(0xCaF5d8813B29465413587C30004231645FE1f680, uint(-1));
+        VestingToken vest = new VestingToken(
+            address(rad),
+            address(this),
+            address(0xacab),
+            1000000 ether,
+            block.timestamp - 1,
+            2 weeks,
+            1 days
+        );
 
         hevm.warp(block.timestamp + 2 days);
         vest.terminateVesting();
         hevm.warp(block.timestamp + 1 days);
-        // withdrawableBalance reverts
-        // if vesting was interrupted
+
+        // withdrawableBalance reverts if vesting was interrupted
         vest.withdrawableBalance();
+    }
+}
+
+contract RegistrarTests is DSTest {
+    ENS ens;
+    RadicleToken rad;
+    Registrar registrar;
+    Hevm hevm = Hevm(HEVM_ADDRESS);
+
+    function setUp() public {
+        rad = new RadicleToken(address(this));
+        ens = ENS(new ENSRegistry());
+        registrar = new Registrar(
+            ens,
+            bytes32(0), // TODO
+            0,          // TODO
+            address(0), // TODO
+            address(0), // TODO
+            ERC20Burnable(address(rad)),
+            address(this)
+        );
+    }
+}
+
+contract GovernanceTest is DSTest {
+    Governor governor;
+    RadicleToken rad;
+    Timelock timelock;
+    Hevm hevm = Hevm(HEVM_ADDRESS);
+
+    function setUp() public {
+        rad = new RadicleToken(address(this));
+        timelock = new Timelock(address(this), 2 days);
+        governor = new Governor(address(timelock), address(rad), address(this));
     }
 }
