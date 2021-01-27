@@ -1,13 +1,13 @@
 pragma solidity ^0.7.5;
 
-import "../radicle-contracts/contracts/Governance/RadicleToken.sol";
-import "../radicle-contracts/contracts/Governance/Governor.sol";
-import "../radicle-contracts/contracts/Governance/Timelock.sol";
-import "../radicle-contracts/contracts/Governance/Treasury.sol";
-import {VestingToken} from  "../radicle-contracts/contracts/Governance/VestingToken.sol";
-import {Registrar} from  "../radicle-contracts/contracts/Registrar.sol";
-import "@ensdomains/ens/contracts/ENS.sol";
-import "@ensdomains/ens/contracts/ENSRegistry.sol";
+import {RadicleToken}  from "radicle-contracts/contracts/Governance/RadicleToken.sol";
+import {Governor}      from "radicle-contracts/contracts/Governance/Governor.sol";
+import {Timelock}      from "radicle-contracts/contracts/Governance/Timelock.sol";
+import {Treasury}      from "radicle-contracts/contracts/Governance/Treasury.sol";
+import {VestingToken}  from "radicle-contracts/contracts/Governance/VestingToken.sol";
+import {Registrar}     from "radicle-contracts/contracts/Registrar.sol";
+import {ENS}           from "@ensdomains/ens/contracts/ENS.sol";
+import {ENSRegistry}   from "@ensdomains/ens/contracts/ENSRegistry.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 
 import "ds-test/test.sol";
@@ -37,19 +37,15 @@ contract RadicleContractsTests is DSTest {
                                   address(0), // TODO
                                   ERC20Burnable(address(token)),
                                   address(this)
-                                  
+
         );
         timelock = new Timelock(address(this), 2 days);
         governor = new Governor(address(timelock), address(token), address(this));
     }
 
-    function test_sanity() public {
-        assertEq(address(governor.token()), address(token));
-    }
-
     // Demonstrates a bug where withdrawableBalance() always reverts after
     // vesting has been interrupted.
-    function test_vesting_failure() public {
+    function testFail_vesting_failure() public {
         hevm.warp(12345678);
         // Note that since the vestingtoken contract performs a transferFrom
         // in its constructor, we have to precalculate its address and approve
@@ -62,7 +58,7 @@ contract RadicleContractsTests is DSTest {
                                              block.timestamp - 1,
                                              2 weeks,
                                              1 days);
-        
+
         hevm.warp(block.timestamp + 2 days);
         vest.terminateVesting();
         hevm.warp(block.timestamp + 1 days);

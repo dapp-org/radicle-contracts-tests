@@ -1,6 +1,7 @@
-@ensdomains/=./
-@openzeppelin/=openzeppelin-contracts/
-@uniswap/v2-core=uniswap-v2-core/
-@uniswap/lib/=uniswap-lib/
+@ensdomains/=./lib/
+@openzeppelin/=lib/openzeppelin-contracts/
+@uniswap/v2-core=lib/uniswap-v2-core/
+@uniswap/lib/=lib/uniswap-lib/
 ds-test/=lib/ds-test/src/
 ds-test=lib/ds-test/src/index.sol
+radicle-contracts/=lib/radicle-contracts/
