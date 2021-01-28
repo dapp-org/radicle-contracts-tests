@@ -19,3 +19,6 @@
 [submodule "lib/ds-math"]
 	path = lib/ds-math
 	url = https://github.com/dapphub/ds-math
+[submodule "lib/ethregistrar"]
+	path = lib/ethregistrar
+	url = https://github.com/ensdomains/ethregistrar
