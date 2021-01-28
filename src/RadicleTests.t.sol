@@ -9,6 +9,8 @@ import {Registrar}     from "radicle-contracts/contracts/Registrar.sol";
 import {ENS}           from "@ensdomains/ens/contracts/ENS.sol";
 import {ENSRegistry}   from "@ensdomains/ens/contracts/ENSRegistry.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
 
 import {DSTest} from "ds-test/test.sol";
 import {DSMath} from "ds-math/math.sol";
@@ -182,24 +184,36 @@ contract VestingTokenTests is DSTest, DSMath {
     }
 }
 
-contract RegistrarTests is DSTest {
+contract RegistrarRPCTests is DSTest {
     ENS ens;
     RadicleToken rad;
     Registrar registrar;
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
+        bytes32 domain = 0x1e8e223921cb10fa256008149efd13dc5089bb252c6270e8be840a020e2e6416; // radicle.eth
+        uint tokenId = 0x78525cd7219f29885ca710a6a1450472a2a9644a4aa54f766a5a49891f093aa9; // seth keccak radicle
+        ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
         rad = new RadicleToken(address(this));
-        ens = ENS(new ENSRegistry());
         registrar = new Registrar(
             ens,
-            bytes32(0), // TODO
-            0,          // TODO
-            address(0), // TODO
-            address(0), // TODO
+            domain,
+            tokenId,
+            address(0), // irrelevant in this version
+            address(0), // irrelevant in this version
             ERC20Burnable(address(rad)),
             address(this)
         );
+
+        // make the registrar the owner of the radicle.eth domain
+        hevm.store(address(ens),0xac1257ce7bce314b8259fc2275d8baa2312a85d1f09c65060220d05a39515655,bytes32(uint256(uint160(address(registrar)))));
+    }
+
+    function test_registerRad() public {
+        assertEq(rad.balanceOf(address(this)), 100_000_000 ether);
+        rad.approve(address(registrar), uint(-1));
+        registrar.registerRad("mrchico", address(this));
+        assertEq(rad.balanceOf(address(this)), 100_000_000 ether - 1 ether);
     }
 }
 
