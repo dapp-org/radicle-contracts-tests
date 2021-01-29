@@ -17,6 +17,7 @@ import {DSMath} from "ds-math/math.sol";
 
 interface Hevm {
     function warp(uint256) external;
+    function roll(uint256) external;
     function store(address,bytes32,bytes32) external;
 }
 
@@ -188,11 +189,13 @@ contract RegistrarRPCTests is DSTest {
     ENS ens;
     RadicleToken rad;
     Registrar registrar;
+    bytes32 domain;
+    uint tokenId;
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
-        bytes32 domain = 0x1e8e223921cb10fa256008149efd13dc5089bb252c6270e8be840a020e2e6416; // radicle.eth
-        uint tokenId = 0x78525cd7219f29885ca710a6a1450472a2a9644a4aa54f766a5a49891f093aa9; // seth keccak radicle
+        domain = 0x1e8e223921cb10fa256008149efd13dc5089bb252c6270e8be840a020e2e6416; // radicle.eth
+        tokenId = 0x78525cd7219f29885ca710a6a1450472a2a9644a4aa54f766a5a49891f093aa9; // seth keccak radicle
         ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
         rad = new RadicleToken(address(this));
         registrar = new Registrar(
@@ -206,14 +209,98 @@ contract RegistrarRPCTests is DSTest {
         );
 
         // make the registrar the owner of the radicle.eth domain
+        // TODO: make this less inscrutible
         hevm.store(address(ens),0xac1257ce7bce314b8259fc2275d8baa2312a85d1f09c65060220d05a39515655,bytes32(uint256(uint160(address(registrar)))));
+
+        // make the registrar the owner of the radicle.eth 721 token
+        bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae;
+        address ethRegistrarAddr = ens.owner(ethNode);
+
+        // owner[tokenId]
+        // TODO: make this less inscrutible
+        hevm.store(ethRegistrarAddr, 0x7906724a382e1baec969d07da2f219928e717131ddfd68dbe3d678f62fa3065b, bytes32(uint256(uint160(address(registrar)))));
+
+        // ownedTokensCount[address(registrar)]
+        // TODO: make this less inscrutible
+        hevm.store(ethRegistrarAddr, 0x27a5c9c1f678324d928c72a6ff8a66d3c79aa98b4c10804760d4542336658cc7, bytes32(uint(1)));
     }
 
-    function test_registerRad() public {
-        assertEq(rad.balanceOf(address(this)), 100_000_000 ether);
-        rad.approve(address(registrar), uint(-1));
-        registrar.registerRad("mrchico", address(this));
-        assertEq(rad.balanceOf(address(this)), 100_000_000 ether - 1 ether);
+    function testRegister() public {
+        registerWith(address(registrar), "mrchico");
+    }
+
+    function registerWith(address reg, string memory name) public {
+        uint preBal = rad.balanceOf(address(this));
+
+        rad.approve(reg, uint(-1));
+        Registrar(reg).registerRad(name, address(this));
+
+        assertEq(rad.balanceOf(address(this)), preBal - 1 ether);
+    }
+
+    function testRegisterWithNewOwner() public {
+        Registrar registrar2 = new Registrar(
+            ens,
+            domain,
+            tokenId,
+            address(0), // irrelevant in this version
+            address(0), // irrelevant in this version
+            ERC20Burnable(address(rad)),
+            address(this)
+        );
+        registrar.setDomainOwner(address(registrar2));
+        registerWith(address(registrar2), "mrchico");
+    }
+}
+
+contract RadUser {
+    RadicleToken rad;
+    constructor (RadicleToken rad_) public {
+        rad = rad_;
+    }
+    function delegate(address to) public {
+        rad.delegate(to);
+    }
+    function transfer(address to, uint amt) public {
+        rad.transfer(to, amt);
+    }
+    function burn(uint amt) public {
+        rad.burnFrom(address(this), amt);
+    }
+}
+
+contract RadicleTokenTest is DSTest {
+    RadicleToken rad;
+    RadUser usr;
+    Hevm hevm = Hevm(HEVM_ADDRESS);
+
+    function setUp() public {
+        rad = new RadicleToken(address(this));
+        usr = new RadUser(rad);
+    }
+
+    function nextBlock() public {
+        hevm.roll(block.number + 1);
+    }
+
+    function test_Delegate(uint96 a, uint96 b, uint96 c, address d, address e) public {
+        if (a > 100000000 ether) return;
+        if (uint(b) + uint(c) > uint(a)) return;
+        if (d == address(0) || e == address(0)) return;
+        rad.transfer(address(usr), a);
+        usr.delegate(address(usr)); // delegating to self should be a noop
+        usr.delegate(d);
+        nextBlock();
+        assertEq(uint(rad.getCurrentVotes(address(d))), a);
+        usr.transfer(e, b);
+        nextBlock();
+        assertEq(uint(rad.getCurrentVotes(address(d))), a - b);
+        usr.burn(c);
+        nextBlock();
+        assertEq(uint(rad.getPriorVotes(address(d), block.number - 3)), a);
+        assertEq(uint(rad.getPriorVotes(address(d), block.number - 2)), a - b);
+        assertEq(uint(rad.getPriorVotes(address(d), block.number - 1)), a - b - c);
+        assertEq(uint(rad.getCurrentVotes(address(d))), a - b - c);
     }
 }
 
