@@ -194,8 +194,8 @@ contract RegistrarRPCTests is DSTest {
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
-        domain = 0x1e8e223921cb10fa256008149efd13dc5089bb252c6270e8be840a020e2e6416; // radicle.eth
-        tokenId = 0x78525cd7219f29885ca710a6a1450472a2a9644a4aa54f766a5a49891f093aa9; // seth keccak radicle
+        domain = nodeNames(); // radicle.eth
+        tokenId = uint(keccak256(abi.encodePacked("radicle"))); // seth keccak radicle
         ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
         rad = new RadicleToken(address(this));
         registrar = new Registrar(
@@ -210,7 +210,7 @@ contract RegistrarRPCTests is DSTest {
 
         // make the registrar the owner of the radicle.eth domain
         // TODO: make this less inscrutible
-        hevm.store(address(ens),0xac1257ce7bce314b8259fc2275d8baa2312a85d1f09c65060220d05a39515655,bytes32(uint256(uint160(address(registrar)))));
+        hevm.store(address(ens),0xac1257ce7bce314b8259fc2275d8baa2312a85d1f09c65060220d05a39515655, bytes32(uint256(uint160(address(registrar)))));
 
         // make the registrar the owner of the radicle.eth 721 token
         bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae;
@@ -225,8 +225,21 @@ contract RegistrarRPCTests is DSTest {
         hevm.store(ethRegistrarAddr, 0x27a5c9c1f678324d928c72a6ff8a66d3c79aa98b4c10804760d4542336658cc7, bytes32(uint(1)));
     }
 
+    function nodeNames() public returns (bytes32) {
+        bytes32 noll = bytes32(uint(0));
+        bytes32 eth = keccak256(abi.encodePacked("eth"));
+        bytes32 top = keccak256(abi.encodePacked(noll, eth));
+        log_named_bytes32("eth: ", top);
+        bytes32 rad = keccak256(abi.encodePacked("radicle"));
+        log_named_bytes32("radicle: ", rad);
+        bytes32 radicleEth = keccak256(abi.encodePacked(top, rad));
+        log_named_bytes32("radicle.eth ", radicleEth);
+        return radicleEth;
+    }
+
     function testRegister() public {
         registerWith(address(registrar), "mrchico");
+        assertEq(ens.owner(keccak256(abi.encodePacked(domain, keccak256(abi.encodePacked("mrchico"))))), address(this));
     }
 
     function registerWith(address reg, string memory name) public {
@@ -250,6 +263,7 @@ contract RegistrarRPCTests is DSTest {
         );
         registrar.setDomainOwner(address(registrar2));
         registerWith(address(registrar2), "mrchico");
+        assertEq(ens.owner(keccak256(abi.encodePacked(domain, keccak256(abi.encodePacked("mrchico"))))), address(this));
     }
 }
 
