@@ -1,4 +1,6 @@
 pragma solidity ^0.7.5;
+pragma abicoder v2;
+
 
 import {RadicleToken}  from "radicle-contracts/contracts/Governance/RadicleToken.sol";
 import {Governor}      from "radicle-contracts/contracts/Governance/Governor.sol";
@@ -306,8 +308,10 @@ contract RegistrarRPCTests is DSTest {
 
 contract RadUser {
     RadicleToken rad;
-    constructor (RadicleToken rad_) public {
+    Governor   gov;
+    constructor (RadicleToken rad_, Governor gov_) public {
         rad = rad_;
+        gov = gov_;
     }
     function delegate(address to) public {
         rad.delegate(to);
@@ -318,20 +322,50 @@ contract RadUser {
     function burn(uint amt) public {
         rad.burnFrom(address(this), amt);
     }
+
+    function propose(address target, string memory sig, bytes memory cd) public {
+        address[] memory targets = new address[](1);
+        uint[] memory values = new uint[](1);
+        string[] memory sigs = new string[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        targets[0] = target;
+        values[0] = 0;
+        sigs[0] = sig;
+        calldatas[0] = cd;
+        gov.propose(targets, values, sigs, calldatas, "");
+    }
 }
 
-contract RadicleTokenTest is DSTest {
+contract GovernanceTest is DSTest {
+    Governor gov;
     RadicleToken rad;
     RadUser usr;
+    RadUser ali;
+    RadUser bob;
+    Timelock timelock;
+
+    uint x; // only writeable by timelock
+
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
         rad = new RadicleToken(address(this));
-        usr = new RadUser(rad);
+        timelock = new Timelock(address(this), 2 days);
+        gov = new Governor(address(timelock), address(rad), address(this));
+        usr = new RadUser(rad, gov);
+        ali = new RadUser(rad, gov);
+        bob = new RadUser(rad, gov);
+        rad.transfer(address(ali), 500_000 ether);
+        rad.transfer(address(bob), 500_001 ether);
     }
 
-    function nextBlock() public {
+    function nextBlock() internal {
         hevm.roll(block.number + 1);
+    }
+
+    function set_x(uint _x) public {
+        require(msg.sender == address(timelock));
+        x = _x;
     }
 
     function test_Delegate(uint96 a, uint96 b, uint96 c, address d, address e) public {
@@ -353,18 +387,14 @@ contract RadicleTokenTest is DSTest {
         assertEq(uint(rad.getPriorVotes(address(d), block.number - 1)), a - b - c);
         assertEq(uint(rad.getCurrentVotes(address(d))), a - b - c);
     }
-}
 
-contract GovernanceTest is DSTest {
-    Governor governor;
-    RadicleToken rad;
-    Timelock timelock;
-    Hevm hevm = Hevm(HEVM_ADDRESS);
-
-    function setUp() public {
-        rad = new RadicleToken(address(this));
-        timelock = new Timelock(address(this), 2 days);
-        governor = new Governor(address(timelock), address(rad), address(this));
+    function test_propose() public {
+        uint proposals = gov.proposalCount();
+        ali.delegate(address(bob));
+        bob.delegate(address(bob));
+        nextBlock();
+        bob.propose(address(this), "set_x(uint256)", abi.encode(uint(1)));
+        assertEq(gov.proposalCount(), proposals + 1);
     }
 }
 
