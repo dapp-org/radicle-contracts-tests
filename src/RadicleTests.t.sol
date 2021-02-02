@@ -9,8 +9,7 @@ import {Registrar}     from "radicle-contracts/contracts/Registrar.sol";
 import {ENS}           from "@ensdomains/ens/contracts/ENS.sol";
 import {ENSRegistry}   from "@ensdomains/ens/contracts/ENSRegistry.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
+import {IERC721}       from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {DSTest} from "ds-test/test.sol";
 import {DSMath} from "ds-math/math.sol";
@@ -192,13 +191,13 @@ contract TreasuryTests is DSTest {
     function setUp() public {
         treasury = new Treasury(address(this));
     }
-    
+
     function test_initial() public {
         assertEq(treasury.admin(), address(this));
         address(treasury).transfer(100 ether);
         assertEq(address(treasury).balance, 100 ether);
         treasury.withdraw(address(2), 10 ether);
-        assertEq(address(treasury).balance, 90 ether);  
+        assertEq(address(treasury).balance, 90 ether);
     }
 }
 
@@ -226,8 +225,11 @@ contract RegistrarRPCTests is DSTest {
         );
 
         // make the registrar the owner of the radicle.eth domain
-        // TODO: make this less inscrutible
-        hevm.store(address(ens),0xac1257ce7bce314b8259fc2275d8baa2312a85d1f09c65060220d05a39515655, bytes32(uint256(uint160(address(registrar)))));
+        hevm.store(
+            address(ens),
+            keccak256(abi.encodePacked(domain, uint(0))),
+            Utils.asBytes32(address(registrar))
+        );
 
         // make the registrar the owner of the radicle.eth 721 token
         bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae;
@@ -235,11 +237,19 @@ contract RegistrarRPCTests is DSTest {
 
         // owner[tokenId]
         // TODO: make this less inscrutible
-        hevm.store(ethRegistrarAddr, 0x7906724a382e1baec969d07da2f219928e717131ddfd68dbe3d678f62fa3065b, bytes32(uint256(uint160(address(registrar)))));
+        hevm.store(
+            ethRegistrarAddr,
+            0x7906724a382e1baec969d07da2f219928e717131ddfd68dbe3d678f62fa3065b,
+            Utils.asBytes32(address(registrar))
+        );
 
         // ownedTokensCount[address(registrar)]
         // TODO: make this less inscrutible
-        hevm.store(ethRegistrarAddr, 0x27a5c9c1f678324d928c72a6ff8a66d3c79aa98b4c10804760d4542336658cc7, bytes32(uint(1)));
+        hevm.store(
+            ethRegistrarAddr,
+            0x27a5c9c1f678324d928c72a6ff8a66d3c79aa98b4c10804760d4542336658cc7,
+            bytes32(uint(1))
+        );
     }
 
     function nodeNames() public returns (bytes32) {
@@ -386,5 +396,9 @@ library Utils {
         );
 
         return vest;
+    }
+
+    function asBytes32(address addr) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(addr)));
     }
 }
