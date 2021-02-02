@@ -232,8 +232,7 @@ contract RegistrarRPCTests is DSTest {
         );
 
         // make the registrar the owner of the radicle.eth 721 token
-        bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae;
-        address ethRegistrarAddr = ens.owner(ethNode);
+        address ethRegistrarAddr = ens.owner(Utils.namehash(["eth"]));
 
         // owner[tokenId]
         // TODO: make this less inscrutible
@@ -253,15 +252,15 @@ contract RegistrarRPCTests is DSTest {
     }
 
     function testRegister() public {
-        registerWith(address(registrar), "mrchico");
+        registerWith(registrar, "mrchico");
         assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
     }
 
-    function registerWith(address reg, string memory name) public {
+    function registerWith(Registrar reg, string memory name) public {
         uint preBal = rad.balanceOf(address(this));
 
-        rad.approve(reg, uint(-1));
-        Registrar(reg).registerRad(name, address(this));
+        rad.approve(address(reg), uint(-1));
+        reg.registerRad(name, address(this));
 
         assertEq(rad.balanceOf(address(this)), preBal - 1 ether);
     }
@@ -277,8 +276,19 @@ contract RegistrarRPCTests is DSTest {
             address(this)
         );
         registrar.setDomainOwner(address(registrar2));
-        registerWith(address(registrar2), "mrchico");
+        registerWith(registrar2, "mrchico");
         assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
+    }
+
+    // a domain that has already been registered cannot be registered again
+    function testFail_double_register(string memory domain) public {
+        require(bytes(domain).length > 0);
+        require(bytes(domain).length <= 32);
+
+        registerWith(registrar, domain);
+        assertEq(ens.owner(Utils.namehash([domain, "radicle", "eth"])), address(this));
+
+        registerWith(registrar, domain);
     }
 }
 
@@ -349,7 +359,7 @@ contract GovernanceTest is DSTest {
 library Utils {
     function create2Address(
         bytes32 salt, address creator, bytes memory creationCode, bytes memory args
-    ) internal returns (address) {
+    ) internal pure returns (address) {
         return address(uint(keccak256(abi.encodePacked(
             bytes1(0xff),
             creator,
