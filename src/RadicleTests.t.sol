@@ -185,6 +185,23 @@ contract VestingTokenTests is DSTest, DSMath {
     }
 }
 
+contract TreasuryTests is DSTest {
+    Hevm hevm = Hevm(HEVM_ADDRESS);
+    Treasury treasury;
+
+    function setUp() public {
+        treasury = new Treasury(address(this));
+    }
+    
+    function test_initial() public {
+        assertEq(treasury.admin(), address(this));
+        address(treasury).transfer(100 ether);
+        assertEq(address(treasury).balance, 100 ether);
+        treasury.withdraw(address(2), 10 ether);
+        assertEq(address(treasury).balance, 90 ether);  
+    }
+}
+
 contract RegistrarRPCTests is DSTest {
     ENS ens;
     RadicleToken rad;
