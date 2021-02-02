@@ -210,7 +210,7 @@ contract RegistrarRPCTests is DSTest {
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
-        domain = nodeNames(); // radicle.eth
+        domain = Utils.namehash(["radicle", "eth"]);
         tokenId = uint(keccak256(abi.encodePacked("radicle"))); // seth keccak radicle
         ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
         rad = new RadicleToken(address(this));
@@ -252,21 +252,9 @@ contract RegistrarRPCTests is DSTest {
         );
     }
 
-    function nodeNames() public returns (bytes32) {
-        bytes32 noll = bytes32(uint(0));
-        bytes32 eth = keccak256(abi.encodePacked("eth"));
-        bytes32 top = keccak256(abi.encodePacked(noll, eth));
-        log_named_bytes32("eth: ", top);
-        bytes32 rad = keccak256(abi.encodePacked("radicle"));
-        log_named_bytes32("radicle: ", rad);
-        bytes32 radicleEth = keccak256(abi.encodePacked(top, rad));
-        log_named_bytes32("radicle.eth ", radicleEth);
-        return radicleEth;
-    }
-
     function testRegister() public {
         registerWith(address(registrar), "mrchico");
-        assertEq(ens.owner(keccak256(abi.encodePacked(domain, keccak256(abi.encodePacked("mrchico"))))), address(this));
+        assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
     }
 
     function registerWith(address reg, string memory name) public {
@@ -290,7 +278,7 @@ contract RegistrarRPCTests is DSTest {
         );
         registrar.setDomainOwner(address(registrar2));
         registerWith(address(registrar2), "mrchico");
-        assertEq(ens.owner(keccak256(abi.encodePacked(domain, keccak256(abi.encodePacked("mrchico"))))), address(this));
+        assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
     }
 }
 
@@ -400,5 +388,56 @@ library Utils {
 
     function asBytes32(address addr) internal pure returns (bytes32) {
         return bytes32(uint256(uint160(addr)));
+    }
+
+    function namehash(string[] memory domain) internal pure returns (bytes32) {
+        if (domain.length == 0) {
+            return bytes32(uint(0));
+        }
+        if (domain.length == 1) {
+            return keccak256(abi.encodePacked(bytes32(0), keccak256(bytes(domain[0]))));
+        }
+        else {
+            bytes memory label = bytes(domain[0]);
+            string[] memory remainder = new string[](domain.length - 1);
+            for (uint i = 1; i < domain.length; i++) {
+                remainder[i - 1] = domain[i];
+            }
+            return keccak256(abi.encodePacked(namehash(remainder), keccak256(label)));
+        }
+    }
+
+    function namehash(string[1] memory domain) internal pure returns (bytes32) {
+        string[] memory dyn = new string[](1);
+        dyn[0] = domain[0];
+        return namehash(dyn);
+    }
+    function namehash(string[2] memory domain) internal pure returns (bytes32) {
+        string[] memory dyn = new string[](domain.length);
+        for (uint i; i < domain.length; i++) {
+            dyn[i] = domain[i];
+        }
+        return namehash(dyn);
+    }
+    function namehash(string[3] memory domain) internal pure returns (bytes32) {
+        string[] memory dyn = new string[](domain.length);
+        for (uint i; i < domain.length; i++) {
+            dyn[i] = domain[i];
+        }
+        return namehash(dyn);
+    }
+    function namehash(string[4] memory domain) internal pure returns (bytes32) {
+        string[] memory dyn = new string[](domain.length);
+        for (uint i; i < domain.length; i++) {
+            dyn[i] = domain[i];
+        }
+        return namehash(dyn);
+    }
+    function namehash(string[5] memory domain) internal pure returns (bytes32) {
+        string[] memory dyn = new string[](domain.length);
+        for (uint i; i < domain.length; i++) {
+            dyn[i] = domain[i];
+        }
+        return namehash(dyn);
     }
 }
