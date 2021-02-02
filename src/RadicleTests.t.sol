@@ -251,21 +251,23 @@ contract RegistrarRPCTests is DSTest {
         );
     }
 
-    function testRegister() public {
-        registerWith(registrar, "mrchico");
-        assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
+    // --- tests ---
+
+    // the ownership of the correct node in ens changes after domain registration
+    function testRegister(string memory name) public {
+        if (bytes(name).length == 0) return;
+        if (bytes(name).length > 32) return;
+
+        registerWith(registrar, name);
+        assertEq(ens.owner(Utils.namehash([name, "radicle", "eth"])), address(this));
     }
 
-    function registerWith(Registrar reg, string memory name) public {
-        uint preBal = rad.balanceOf(address(this));
+    // domain registration still works after transfering ownership of the
+    // "radicle.eth" domain to a new registrar
+    function testRegisterWithNewOwner(string memory name) public {
+        if (bytes(name).length == 0) return;
+        if (bytes(name).length > 32) return;
 
-        rad.approve(address(reg), uint(-1));
-        reg.registerRad(name, address(this));
-
-        assertEq(rad.balanceOf(address(this)), preBal - 1 ether);
-    }
-
-    function testRegisterWithNewOwner() public {
         Registrar registrar2 = new Registrar(
             ens,
             domain,
@@ -276,19 +278,29 @@ contract RegistrarRPCTests is DSTest {
             address(this)
         );
         registrar.setDomainOwner(address(registrar2));
-        registerWith(registrar2, "mrchico");
-        assertEq(ens.owner(Utils.namehash(["mrchico", "radicle", "eth"])), address(this));
+        registerWith(registrar2, name);
+
+        assertEq(ens.owner(Utils.namehash([name, "radicle", "eth"])), address(this));
     }
 
     // a domain that has already been registered cannot be registered again
-    function testFail_double_register(string memory domain) public {
-        require(bytes(domain).length > 0);
-        require(bytes(domain).length <= 32);
+    function testFail_double_register(string memory name) public {
+        require(bytes(name).length > 0);
+        require(bytes(name).length <= 32);
 
-        registerWith(registrar, domain);
-        assertEq(ens.owner(Utils.namehash([domain, "radicle", "eth"])), address(this));
+        registerWith(registrar, name);
+        registerWith(registrar, name);
+    }
 
-        registerWith(registrar, domain);
+    // --- helpers ---
+
+    function registerWith(Registrar reg, string memory name) internal {
+        uint preBal = rad.balanceOf(address(this));
+
+        rad.approve(address(reg), uint(-1));
+        reg.registerRad(name, address(this));
+
+        assertEq(rad.balanceOf(address(this)), preBal - 1 ether);
     }
 }
 
