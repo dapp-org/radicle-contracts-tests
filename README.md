@@ -1,5 +1,5 @@
 ```sh
 git clone git@github.com:dapp-org/radicle-contract-tests.git --recursive
-source env
-dapp test
+nix-shell
+dapp test --rpc-url <ETH_RPC_URL>
 ```
