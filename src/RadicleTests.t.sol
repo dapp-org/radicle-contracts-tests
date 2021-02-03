@@ -256,17 +256,34 @@ contract RegistrarRPCTests is DSTest {
     // --- tests ---
 
     // the ownership of the correct node in ens changes after domain registration
-    function testRegister(string memory name) public {
+    function test_register(string memory name) public {
         if (bytes(name).length == 0) return;
         if (bytes(name).length > 32) return;
+        bytes32 node = Utils.namehash([name, "radicle", "eth"]);
+
+        assertEq(ens.owner(node), address(0));
+        registerWith(registrar, name);
+        assertEq(ens.owner(node), address(this));
+    }
+
+    // BUG: names transfered to the zero address can never be reregistered
+    function test_reregistration(string memory name) public {
+        if (bytes(name).length == 0) return;
+        if (bytes(name).length > 32) return;
+        bytes32 node = Utils.namehash([name, "radicle", "eth"]);
+        registerWith(registrar, name);
+
+        ens.setOwner(node, address(0));
+        assertEq(ens.owner(node), address(0));
+        assertTrue(ens.recordExists(node));
 
         registerWith(registrar, name);
-        assertEq(ens.owner(Utils.namehash([name, "radicle", "eth"])), address(this));
+        assertEq(ens.owner(node), address(this));
     }
 
     // domain registration still works after transfering ownership of the
     // "radicle.eth" domain to a new registrar
-    function testRegisterWithNewOwner(string memory name) public {
+    function test_register_with_new_owner(string memory name) public {
         if (bytes(name).length == 0) return;
         if (bytes(name).length > 32) return;
 
@@ -292,6 +309,21 @@ contract RegistrarRPCTests is DSTest {
 
         registerWith(registrar, name);
         registerWith(registrar, name);
+    }
+
+    // Utils.nameshash does the right thing for radicle.eth subdomains
+    function test_namehash(string memory name) public {
+        bytes32 node = Utils.namehash([name, "radicle", "eth"]);
+        assertEq(node, keccak256(abi.encodePacked(
+            keccak256(abi.encodePacked(
+                keccak256(abi.encodePacked(
+                    bytes32(uint(0)),
+                    keccak256("eth")
+                )),
+                keccak256("radicle")
+            )),
+            keccak256(bytes(name))
+        )));
     }
 
     // --- helpers ---
