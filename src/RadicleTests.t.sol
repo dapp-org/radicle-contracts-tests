@@ -266,6 +266,17 @@ contract RegistrarRPCTests is DSTest {
         assertEq(ens.owner(node), address(this));
     }
 
+    // BUG: the resolver is address(0x0) for radicle subdomains
+    function test_resolverUnset() public {
+        bytes32 node = Utils.namehash(["microsoft", "radicle", "eth"]);
+
+        assertEq(ens.owner(node), address(0));
+        registerWith(registrar, "microsoft");
+        assertEq(ens.owner(node), address(this));
+        assertEq(ens.resolver(node), ens.resolver(Utils.namehash(["radicle", "eth"])));
+    }
+
+
     // BUG: names transfered to the zero address can never be reregistered
     function test_reregistration(string memory name) public {
         if (bytes(name).length == 0) return;
