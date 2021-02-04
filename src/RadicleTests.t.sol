@@ -393,7 +393,16 @@ contract GovernanceTest is DSTest {
 
     function setUp() public {
         rad = new RadicleToken(address(this));
-        timelock = new Timelock(address(this), 2 days);
+
+        // manually create the rlp encoding of [sender,nonce], with length prefix.
+        // `192+len(sender)+len(nonce):len(sender):sender:128+len(nonce):nonce`
+        // no length prefix needed for nonce < 128
+        uint8 nonce = 3;  // predicted nonce of gov address
+        address govAddr =
+            address(bytes20(keccak256(
+                abi.encodePacked(hex"d694", address(this), nonce)) << 96));
+
+        timelock = new Timelock(govAddr, 2 days);
         gov = new Governor(address(timelock), address(rad), address(this));
         usr = new RadUser(rad, gov);
         ali = new RadUser(rad, gov);
