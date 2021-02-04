@@ -366,7 +366,7 @@ contract RadUser {
         rad.burnFrom(address(this), amt);
     }
 
-    function propose(address target, string memory sig, bytes memory cd) public {
+    function propose(address target, string memory sig, bytes memory cd) public returns (uint) {
         address[] memory targets = new address[](1);
         uint[] memory values = new uint[](1);
         string[] memory sigs = new string[](1);
@@ -375,7 +375,13 @@ contract RadUser {
         values[0] = 0;
         sigs[0] = sig;
         calldatas[0] = cd;
-        gov.propose(targets, values, sigs, calldatas, "");
+        return gov.propose(targets, values, sigs, calldatas, "");
+    }
+    function queue(uint proposalId) public {
+        gov.queue(proposalId);
+    }
+    function castVote(uint proposalId, bool support) public {
+        gov.castVote(proposalId, support);
     }
 }
 
@@ -385,6 +391,7 @@ contract GovernanceTest is DSTest {
     RadUser usr;
     RadUser ali;
     RadUser bob;
+    RadUser cal;
     Timelock timelock;
 
     uint x; // only writeable by timelock
@@ -407,8 +414,12 @@ contract GovernanceTest is DSTest {
         usr = new RadUser(rad, gov);
         ali = new RadUser(rad, gov);
         bob = new RadUser(rad, gov);
+        cal = new RadUser(rad, gov);
+        // proposal threshold is 1%
         rad.transfer(address(ali), 500_000 ether);
         rad.transfer(address(bob), 500_001 ether);
+        // quorum is 4%
+        rad.transfer(address(cal), 5_000_000 ether);
     }
 
     function nextBlock() internal {
@@ -447,6 +458,41 @@ contract GovernanceTest is DSTest {
         nextBlock();
         bob.propose(address(this), "set_x(uint256)", abi.encode(uint(1)));
         assertEq(gov.proposalCount(), proposals + 1);
+    }
+
+    // governance follows the flow:
+    //   - propose
+    //   - queue
+    //   - execute OR cancel
+    function test_vote_to_execution() public {
+        ali.delegate(address(bob));
+        bob.delegate(address(bob));
+        cal.delegate(address(cal));
+        nextBlock();
+        uint id = bob.propose(address(this), "set_x(uint256)", abi.encode(uint(1)));
+        assertEq(uint(gov.state(id)), 0 , "proposal is pending");
+
+        // proposal is Pending until block.number + votingDelay + 1
+        hevm.roll(block.number + gov.votingDelay() + 1);
+        assertEq(uint(gov.state(id)), 1, "proposal is active");
+
+        // votes cast must have been checkpointed by delegation, and
+        // exceed the quorum and votes against
+        cal.castVote(id, true);
+        hevm.roll(block.number + gov.votingPeriod());
+        assertEq(uint(gov.state(id)), 4, "proposal is successful");
+
+        // queueing succeeds unless already queued
+        // (N.B. cannot queue multiple calls to same signature as-is)
+        bob.queue(id);
+        assertEq(uint(gov.state(id)), 5, "proposal is queued");
+
+        // can only execute following time delay
+        assertEq(x, 0, "x is unmodified");
+        hevm.warp(block.timestamp + 2 days);
+        gov.execute(id);
+        assertEq(uint(gov.state(id)), 7, "proposal is executed");
+        assertEq(x, 1, "x is modified");
     }
 }
 
