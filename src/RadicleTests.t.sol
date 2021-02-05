@@ -2,6 +2,7 @@ pragma solidity ^0.7.5;
 pragma abicoder v2;
 
 
+import {Phase0}        from "radicle-contracts/contracts/deploy/phase0.sol";
 import {RadicleToken}  from "radicle-contracts/contracts/Governance/RadicleToken.sol";
 import {Governor}      from "radicle-contracts/contracts/Governance/Governor.sol";
 import {Timelock}      from "radicle-contracts/contracts/Governance/Timelock.sol";
@@ -399,18 +400,18 @@ contract GovernanceTest is DSTest {
     Hevm hevm = Hevm(HEVM_ADDRESS);
 
     function setUp() public {
-        rad = new RadicleToken(address(this));
+        Phase0 phase0 = new Phase0( address(this)
+                                  , 2 days
+                                  , address(this)
+                                  , ENS(address(this))
+                                  , "namehash"
+                                  , "label"
+                                  );
 
-        // manually create the rlp encoding of [sender,nonce], with length prefix.
-        // `192+len(sender)+len(nonce):len(sender):sender:128+len(nonce):nonce`
-        // no length prefix needed for nonce < 128
-        uint8 nonce = 3;  // predicted nonce of gov address
-        address govAddr =
-            address(bytes20(keccak256(
-                abi.encodePacked(hex"d694", address(this), nonce)) << 96));
+        rad      = phase0.token();
+        timelock = phase0.timelock();
+        gov      = phase0.governor();
 
-        timelock = new Timelock(govAddr, 2 days);
-        gov = new Governor(address(timelock), address(rad), address(this));
         usr = new RadUser(rad, gov);
         ali = new RadUser(rad, gov);
         bob = new RadUser(rad, gov);
@@ -429,6 +430,19 @@ contract GovernanceTest is DSTest {
     function set_x(uint _x) public {
         require(msg.sender == address(timelock));
         x = _x;
+    }
+
+    function test_deploy() public {
+        uint gas_before = gasleft();
+        Phase0 phase0 = new Phase0( address(this)
+                                  , 2 days
+                                  , address(this)
+                                  , ENS(address(this))
+                                  , "namehash"
+                                  , "label"
+                                  );
+        uint gas_after = gasleft();
+        log_named_uint("deployment gas", gas_before - gas_after);
     }
 
     function test_Delegate(uint96 a, uint96 b, uint96 c, address d, address e) public {
