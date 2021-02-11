@@ -571,8 +571,11 @@ contract RegistrarRPCTests is DSTest {
             );
         }
 
-        Signature memory permitSig = signPermit(args.sk, permitParams);
-        Signature memory commitSig = signCommit(args.sk, commitParams);
+        Signature memory permitSig;
+        { permitSig = signPermit(args.sk, permitParams); }
+
+        Signature memory commitSig;
+        { commitSig = signCommit(args.sk, commitParams); }
 
         // make the commitment
         registrar.commitBySigWithPermit(
