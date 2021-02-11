@@ -187,6 +187,34 @@ contract RegistrarRPCTests is DSTest {
 
         registerWith(registrar, name);
         registerWith(registrar, name);
+        
+    }
+
+    // test commit with a signature generated in using the script `genereteSig.js`
+    // esssentially just checks that the js and solidity ways of constructing the
+    // 712 message match
+    function test_commitBySig() public {
+        uint preBal = rad.balanceOf(address(this));
+        rad.approve(address(registrar), registrar.registrationFeeRad());
+        
+        address cal = 0x29C76e6aD8f28BB1004902578Fb108c507Be341b;                  
+        // commit to the name using permit
+        bytes32 commitment = 0x23ac000000000000000000000000000000000000000000000000000000000000;
+        uint nonce = 0;
+        uint expiry = uint(-1);
+        uint submissionFee = 0;
+        bytes32 domain_typehash = registrar.DOMAIN_TYPEHASH();
+        log_named_bytes32("domain_typehash: ", domain_typehash);
+        bytes32 commit_typehash = registrar.COMMIT_TYPEHASH();
+        log_named_bytes32("commit_typehash: ", commit_typehash);
+        log_named_address("registrar address: ", address(registrar));
+        log(registrar.NAME());
+        bytes32 domainSeparator = keccak256(abi.encode(domain_typehash, keccak256(bytes("Registrar")), Utils.getChainId(), address(registrar)));
+        log_named_bytes32("domain_hash: ", domainSeparator);
+                
+        bytes32 structHash = keccak256(abi.encode(commit_typehash, commitment, nonce, expiry, submissionFee));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        assertEq(cal, ecrecover(digest, 28, 0xc663865ebbecc62e74af299cfd139daa2627baa18f6cb011eaca4475352a5f35, 0x7a0aa7358b8106b0fa5f39b3c790cd3876add9fe2cc59c199f94ac79007e7230));
     }
 
     // unfortunately we need something like `hevm.callFrom` to test this properly
@@ -450,14 +478,6 @@ contract RegistrarRPCTests is DSTest {
     function registerWith(Registrar reg, string memory name) internal {
         registerWith(reg, name, 42069);
     }
-
-    /* function registerFor(Registrar reg, address owner, string memory name, bytes32 r, bytes32 s, uint8 v, bytes32 permit_r, bytes32 permit_s, uint8 permit_v) internal { */
-    /*     uint salt = 150987; */
-    /*     bytes32 commitment = keccak256(abi.encodePacked(name, owner, salt)); */
-    /*     reg.commitBySigWithPermit(commitment, 0, uint(-1), 1 ether, owner, uint(-1), uint(-1), permit_v, permit_r, permit_s); */
-    /*     hevm.roll(block.number + 100); */
-    /*     reg.register(name, owner, salt); */
-    /* } */
 
     function registerWith(Registrar reg, string memory name, uint salt) internal {
         uint preBal = rad.balanceOf(address(this));
