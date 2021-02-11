@@ -538,35 +538,41 @@ contract RegistrarRPCTests is DSTest {
         uint submissionFee;
     }
 
-    function test_commit_by_sig_with_permit(
-        uint sk, string memory name, uint salt, uint expiry, uint112 submissionFee
-    ) public {
-        if (sk == 0) return;
-        if (!registrar.valid(name)) return;
-        if (expiry < block.timestamp) return;
+    struct TestParams {
+        uint sk;
+        string name;
+        uint salt;
+        uint expiry;
+        uint112 submissionFee;
+    }
+
+    function test_commit_by_sig_with_permit(TestParams memory args) public {
+        if (args.sk == 0) return;
+        if (!registrar.valid(args.name)) return;
+        if (args.expiry < block.timestamp) return;
 
         PermitParams memory permitParams;
         CommitParams memory commitParams;
         { // stack too deep....
-            address owner = hevm.addr(sk);
-            uint totalFee = registrar.registrationFeeRad() + submissionFee;
+            address owner = hevm.addr(args.sk);
+            uint totalFee = registrar.registrationFeeRad() + args.submissionFee;
 
             permitParams = PermitParams(
                 owner,
                 address(registrar),
                 totalFee,
-                expiry
+                args.expiry
             );
             commitParams = CommitParams(
-                keccak256(abi.encodePacked(name, owner, salt)),
+                keccak256(abi.encodePacked(args.name, owner, args.salt)),
                 registrar.nonces(owner),
-                expiry,
-                submissionFee
+                args.expiry,
+                args.submissionFee
             );
         }
 
-        Signature memory permitSig = signPermit(sk, permitParams);
-        Signature memory commitSig = signCommit(sk, commitParams);
+        Signature memory permitSig = signPermit(args.sk, permitParams);
+        Signature memory commitSig = signCommit(args.sk, commitParams);
 
         // make the commitment
         registrar.commitBySigWithPermit(
