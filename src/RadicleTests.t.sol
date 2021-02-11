@@ -412,8 +412,17 @@ contract RegistrarRPCTests is DSTest {
         }
     }
 
+    /*
+       here we test the full end to end flow commitBySig flow, validating that:
+
+        - the relayer is compensated
+        - the registration fee is burned
+        - the name is commited to
+        - the owner paid for both the registration and the relaying fee
+        - the name can subsequently be registered
+    */
     function test_commit_by_sig(
-        uint sk, string memory name, uint salt, uint expiry, uint16 submissionFee
+        uint sk, string memory name, uint salt, uint expiry, uint64 submissionFee
     ) public {
         if (sk == 0) return;
         if (!registrar.valid(name)) return;
@@ -422,48 +431,91 @@ contract RegistrarRPCTests is DSTest {
         address owner = hevm.addr(sk);
         uint totalFee = registrar.registrationFeeRad() + submissionFee;
 
-        // give `owner` some rad and approve the registrar for them
-        rad.transfer(address(owner), totalFee);
-        hevm.store(
-            address(rad),
-            keccak256(abi.encodePacked(
-                uint(address(registrar)),
-                keccak256(abi.encodePacked(uint(owner), uint(1)))
-            )),
-            bytes32(totalFee)
-        );
-        require(rad.allowance(owner, address(registrar)) == totalFee, "incorrect allowance");
+        // commit
+        {
+            // give `owner` some rad and approve the registrar for them
+            rad.transfer(address(owner), totalFee);
+            hevm.store(
+                address(rad),
+                keccak256(abi.encodePacked(
+                    uint(address(registrar)),
+                    keccak256(abi.encodePacked(uint(owner), uint(1)))
+                )),
+                bytes32(totalFee)
+            );
+            require(rad.allowance(owner, address(registrar)) == totalFee, "incorrect allowance");
 
-        // generate the commitment
-        bytes32 commitment = keccak256(abi.encodePacked(name, owner, salt));
 
-        // produce the signed commit message
-        bytes32 domainSeparator =
-            keccak256(
-                abi.encode(
-                    registrar.DOMAIN_TYPEHASH(),
-                    keccak256(bytes(registrar.NAME())),
-                    Utils.getChainId(),
-                    address(registrar)
-                )
+            // generate the commitment
+            bytes32 commitment = keccak256(abi.encodePacked(name, owner, salt));
+
+            // produce the signed commit message
+            bytes32 digest;
+            { // stack too deep...
+                bytes32 domainSeparator =
+                    keccak256(
+                        abi.encode(
+                            registrar.DOMAIN_TYPEHASH(),
+                            keccak256(bytes(registrar.NAME())),
+                            Utils.getChainId(),
+                            address(registrar)
+                        )
+                    );
+
+                bytes32 structHash =
+                    keccak256(
+                        abi.encode(
+                            registrar.COMMIT_TYPEHASH(),
+                            commitment,
+                            registrar.nonces(owner),
+                            expiry,
+                            submissionFee
+                        )
+                    );
+
+                digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+            }
+            (uint8 v, bytes32 r, bytes32 s) = hevm.sign(sk, digest);
+
+            // cache some values
+            uint preBalThis = rad.balanceOf(address(this));
+            uint preBalOwner = rad.balanceOf(owner);
+            uint preSupply = rad.totalSupply();
+
+            // submit the signed commitment
+            registrar.commitBySig(commitment, registrar.nonces(owner), expiry, submissionFee, v, r, s);
+
+            // assertions
+            assertEq(
+                registrar.commitments().commited(commitment), block.number,
+                "commitment was made at the current block"
+            );
+            assertEq(
+                rad.balanceOf(address(this)) - preBalThis, submissionFee,
+                "relayer was paid submissionFee"
+            );
+            assertEq(
+                preSupply - rad.totalSupply(), registrar.registrationFeeRad(),
+                "registration fee was burned"
+            );
+            assertEq(
+                preBalOwner - rad.balanceOf(owner), totalFee,
+                "owner paid submissionFee + registrationFeeRad"
+            );
+        }
+
+        // register
+        {
+            // jump forward until name can be registered
+            hevm.roll(block.number + registrar.minCommitmentAge() + 1);
+            registrar.register(name, owner, salt);
+
+            assertEq(
+                ens.owner(Utils.namehash([name, "radicle", "eth"])), owner,
+                "owner controls the name in ens"
             );
 
-        bytes32 structHash =
-            keccak256(
-                abi.encode(
-                    registrar.COMMIT_TYPEHASH(),
-                    commitment,
-                    registrar.nonces(owner),
-                    expiry,
-                    submissionFee
-                )
-            );
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-        (uint8 v, bytes32 r, bytes32 s) = hevm.sign(sk, digest);
-
-        // submit the signed commitment
-        registrar.commitBySig(commitment, registrar.nonces(owner), expiry, submissionFee, v, r, s);
+        }
     }
 
     // Utils.nameshash does the right thing for radicle.eth subdomains
