@@ -16,9 +16,11 @@ import {Hevm, Utils}  from "./Utils.sol";
 contract RadUser {
     RadicleToken rad;
     Governor   gov;
-    constructor (RadicleToken rad_, Governor gov_) {
+    Timelock timelock;
+    constructor (RadicleToken rad_, Governor gov_, Timelock timelock_) {
         rad = rad_;
         gov = gov_;
+        timelock = timelock_;
     }
     function delegate(address to) public {
         rad.delegate(to);
@@ -47,6 +49,17 @@ contract RadUser {
     function castVote(uint proposalId, bool support) public {
         gov.castVote(proposalId, support);
     }
+
+    function queueTimelock(address target, string memory sig, bytes memory cd, uint256 eta) public {
+        timelock.queueTransaction(target, 0, sig, cd, eta);
+    }
+    function executeTimelock(address target, string memory sig, bytes memory cd, uint256 eta) public {
+        timelock.executeTransaction(target, 0, sig, cd, eta);
+    }
+
+    function accept() public {
+        timelock.acceptAdmin();
+    }
 }
 
 contract GovernanceTest is DSTest {
@@ -65,7 +78,7 @@ contract GovernanceTest is DSTest {
     function setUp() public {
         Phase0 phase0 = new Phase0( address(this)
                                   , 2 days
-                                  , address(this)
+                                  , address(0)
                                   , ENS(address(this))
                                   , "namehash"
                                   , "label"
@@ -75,10 +88,10 @@ contract GovernanceTest is DSTest {
         timelock = phase0.timelock();
         gov      = phase0.governor();
 
-        usr = new RadUser(rad, gov);
-        ali = new RadUser(rad, gov);
-        bob = new RadUser(rad, gov);
-        cal = new RadUser(rad, gov);
+        usr = new RadUser(rad, gov, timelock);
+        ali = new RadUser(rad, gov, timelock);
+        bob = new RadUser(rad, gov, timelock);
+        cal = new RadUser(rad, gov, timelock);
         // proposal threshold is 1%
         rad.transfer(address(ali), 500_000 ether);
         rad.transfer(address(bob), 500_001 ether);
@@ -220,6 +233,46 @@ contract GovernanceTest is DSTest {
         hevm.warp(block.timestamp + 2 days);
         gov.execute(id);
         assertEq(uint(gov.state(id)), 7, "proposal is executed");
+        assertEq(x, 1, "x is modified");
+    }
+
+    function test_change_timelock_admin() public {
+        ali.delegate(address(bob));
+        bob.delegate(address(bob));
+        cal.delegate(address(cal));
+        nextBlock();
+        uint id = bob.propose(address(timelock), "setPendingAdmin(address)", abi.encode(address(bob)));
+        assertEq(uint(gov.state(id)), 0 , "proposal is pending");
+
+        // proposal is Pending until block.number + votingDelay + 1
+        hevm.roll(block.number + gov.votingDelay() + 1);
+        assertEq(uint(gov.state(id)), 1, "proposal is active");
+
+        // votes cast must have been checkpointed by delegation, and
+        // exceed the quorum and votes against
+        cal.castVote(id, true);
+        hevm.roll(block.number + gov.votingPeriod());
+        assertEq(uint(gov.state(id)), 4, "proposal is successful");
+
+        // queueing succeeds unless already queued
+        // (N.B. cannot queue multiple calls to same signature as-is)
+        bob.queue(id);
+        assertEq(uint(gov.state(id)), 5, "proposal is queued");
+
+        // can only execute following time delay
+        assertEq(x, 0, "x is unmodified");
+        hevm.warp(block.timestamp + 2 days);
+        gov.execute(id);
+        assertEq(uint(gov.state(id)), 7, "proposal is executed");
+
+        bob.accept();
+        assertEq(timelock.admin(), address(bob));
+
+        assertEq(x, 0, "x is unmodified");
+        uint eta = block.timestamp + timelock.delay();
+        bob.queueTimelock(address(this), "set_x(uint256)", abi.encode(uint(1)), eta);
+        hevm.warp(block.timestamp + 2 days);
+        bob.executeTimelock(address(this), "set_x(uint256)", abi.encode(uint(1)), eta);
         assertEq(x, 1, "x is modified");
     }
 
