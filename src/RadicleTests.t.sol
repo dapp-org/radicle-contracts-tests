@@ -545,23 +545,25 @@ contract RegistrarRPCTests is DSTest {
         if (!registrar.valid(name)) return;
         if (expiry < block.timestamp) return;
 
-        address owner = hevm.addr(sk);
-        uint totalFee = registrar.registrationFeeRad() + submissionFee;
+        PermitParams memory permitParams;
+        CommitParams memory commitParams;
+        { // stack too deep....
+            address owner = hevm.addr(sk);
+            uint totalFee = registrar.registrationFeeRad() + submissionFee;
 
-        PermitParams memory permitParams
-            = PermitParams(
+            permitParams = PermitParams(
                 owner,
                 address(registrar),
                 totalFee,
                 expiry
             );
-        CommitParams memory commitParams
-            = CommitParams(
+            commitParams = CommitParams(
                 keccak256(abi.encodePacked(name, owner, salt)),
                 registrar.nonces(owner),
                 expiry,
                 submissionFee
             );
+        }
 
         Signature memory permitSig = signPermit(sk, permitParams);
         Signature memory commitSig = signCommit(sk, commitParams);
