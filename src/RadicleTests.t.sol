@@ -518,6 +518,68 @@ contract RegistrarRPCTests is DSTest {
         }
     }
 
+    struct Signature {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
+    struct PermitParams {
+        address owner;
+        address spender;
+        uint value;
+        uint expiry;
+    }
+
+    struct CommitParams {
+        bytes32 commitment;
+        uint nonce;
+        uint expiry;
+        uint submissionFee;
+    }
+
+    function test_commit_by_sig_with_permit(
+        uint sk, string memory name, uint salt, uint expiry, uint112 submissionFee
+    ) public {
+        if (sk == 0) return;
+        if (!registrar.valid(name)) return;
+        if (expiry < block.timestamp) return;
+
+        address owner = hevm.addr(sk);
+        uint totalFee = registrar.registrationFeeRad() + submissionFee;
+
+        PermitParams memory permitParams
+            = PermitParams(
+                owner,
+                address(registrar),
+                totalFee,
+                expiry
+            );
+        CommitParams memory commitParams
+            = CommitParams(
+                keccak256(abi.encodePacked(name, owner, salt)),
+                registrar.nonces(owner),
+                expiry,
+                submissionFee
+            );
+
+        Signature memory permitSig = signPermit(sk, permitParams);
+        Signature memory commitSig = signCommit(sk, commitParams);
+
+        // make the commitment
+        registrar.commitBySigWithPermit(
+            commitParams.commitment,
+            commitParams.nonce,
+            commitParams.expiry,
+            commitParams.submissionFee,
+            commitSig.v, commitSig.r, commitSig.s,
+            permitParams.owner,
+            permitParams.value,
+            permitParams.expiry,
+            permitSig.v, permitSig.r, permitSig.s
+        );
+    }
+
     // Utils.nameshash does the right thing for radicle.eth subdomains
     function test_namehash(string memory name) public {
         bytes32 node = Utils.namehash([name, "radicle", "eth"]);
@@ -558,6 +620,52 @@ contract RegistrarRPCTests is DSTest {
         reg.register(name, address(this), salt);
 
         assertEq(rad.balanceOf(address(this)), preBal - 1 ether);
+    }
+
+    function signPermit(uint sk, PermitParams memory args) internal returns (Signature memory) {
+        require(args.owner == hevm.addr(sk), "signPermit: signing from wrong address");
+        bytes32 structHash =
+            keccak256(
+                abi.encode(
+                    rad.PERMIT_TYPEHASH(),
+                    args.owner,
+                    args.spender,
+                    args.value,
+                    rad.nonces(args.owner),
+                    args.expiry
+                )
+            );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", rad.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = hevm.sign(sk, digest);
+        return Signature(v, r, s);
+    }
+
+    function signCommit(uint sk, CommitParams memory args) internal returns (Signature memory) {
+        address signer = hevm.addr(sk);
+        bytes32 domainSeparator =
+            keccak256(
+                abi.encode(
+                    registrar.DOMAIN_TYPEHASH(),
+                    keccak256(bytes(registrar.NAME())),
+                    Utils.getChainId(),
+                    address(registrar)
+                )
+            );
+
+        bytes32 structHash =
+            keccak256(
+                abi.encode(
+                    registrar.COMMIT_TYPEHASH(),
+                    args.commitment,
+                    args.nonce,
+                    args.expiry,
+                    args.submissionFee
+                )
+            );
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = hevm.sign(sk, digest);
+        return Signature(v, r, s);
     }
 }
 
