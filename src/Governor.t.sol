@@ -277,6 +277,42 @@ contract GovernanceTest is DSTest {
         assertEq(x, 1, "x is modified");
     }
 
+    function test_transfer_rad_from_timelock() public {
+        uint originalBobBalance = rad.balanceOf(address(bob));
+        uint transferAmount = 9 ether;
+        rad.transfer(address(timelock), 10 ether);
+        assertEq(rad.balanceOf(address(timelock)), 10 ether);
+
+        ali.delegate(address(bob));
+        bob.delegate(address(bob));
+        cal.delegate(address(cal));
+        nextBlock();
+        
+        uint id = bob.propose(address(rad), "transfer(address,uint256)", abi.encode(address(bob), uint(transferAmount)));
+        assertEq(uint(gov.state(id)), 0 , "proposal is pending");
+
+        // proposal is Pending until block.number + votingDelay + 1
+        hevm.roll(block.number + gov.votingDelay() + 1);
+        assertEq(uint(gov.state(id)), 1, "proposal is active");
+
+        // votes cast must have been checkpointed by delegation, and
+        // exceed the quorum and votes against
+        cal.castVote(id, true);
+        hevm.roll(block.number + gov.votingPeriod());
+        assertEq(uint(gov.state(id)), 4, "proposal is successful");
+
+        // queueing succeeds unless already queued
+        // (N.B. cannot queue multiple calls to same signature as-is)
+        bob.queue(id);
+        assertEq(uint(gov.state(id)), 5, "proposal is queued");
+
+        hevm.warp(block.timestamp + 2 days);
+        gov.execute(id);
+
+        assertEq(rad.balanceOf(address(timelock)), uint(1 ether));
+        assertEq(rad.balanceOf(address(bob)), originalBobBalance + transferAmount);
+    }
+
     /* function testAbiEncode() public { */
     /*     address[] memory targets = new address[](1); */
     /*     uint256[] memory values  = new uint256[](1); */
