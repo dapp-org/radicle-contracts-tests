@@ -241,6 +241,8 @@ contract GovernanceTest is DSTest {
         bob.delegate(address(bob));
         cal.delegate(address(cal));
         nextBlock();
+
+        // set timelock's pendingAdmin to bob
         uint id = bob.propose(address(timelock), "setPendingAdmin(address)", abi.encode(address(bob)));
         assertEq(uint(gov.state(id)), 0 , "proposal is pending");
 
@@ -260,7 +262,6 @@ contract GovernanceTest is DSTest {
         assertEq(uint(gov.state(id)), 5, "proposal is queued");
 
         // can only execute following time delay
-        assertEq(x, 0, "x is unmodified");
         hevm.warp(block.timestamp + 2 days);
         gov.execute(id);
         assertEq(uint(gov.state(id)), 7, "proposal is executed");
