@@ -103,7 +103,7 @@ contract GovernanceTest is DSTest {
         uint gas_before = gasleft();
         Phase0 phase0 = new Phase0( address(this)
                                   , 2 days
-                                  , address(this)
+                                  , address(0)
                                   , ENS(address(this))
                                   , "namehash"
                                   , "label"

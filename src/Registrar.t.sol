@@ -32,7 +32,7 @@ contract RegistrarRPCTests is DSTest {
         tokenId = uint(keccak256(abi.encodePacked("radicle"))); // seth keccak radicle
         Phase0 phase0 = new Phase0( address(this)
                                     , 2 days
-                                    , address(this)
+                                    , address(0)
                                     , ens
                                     , domain
                                     , "radicle"
