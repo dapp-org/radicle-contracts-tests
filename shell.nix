@@ -14,4 +14,5 @@ in
     DAPP_SOLC="solc-0.7.5";
     DAPP_REMAPPINGS=pkgs.lib.strings.fileContents ./remappings.txt;
     DAPP_LINK_TEST_LIBRARIES=0;
+    DAPP_BUILD_OPTIMIZE=1;
   }
